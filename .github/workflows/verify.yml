@@ -1,0 +1,38 @@
+name: Verify exported Guides product
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    if: github.event.repository.private == false
+    runs-on: macos-26
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        edition: ["baseline"]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Release integrity regressions
+        run: python3 -B scripts/test_release_integrity.py
+      - name: Test and package ${{ matrix.edition }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case '${{ matrix.edition }}' in
+            baseline)
+              swift test --jobs 2 --scratch-path .build/baseline -Xswiftc -DBASELINE -Xswiftc -DGUIDES_REPLICA
+              scripts/build-app.sh baseline
+              codesign --verify --deep --strict 'dist/Guides Replica.app'
+              ;;
+            *) echo "Unsupported edition: ${{ matrix.edition }}" >&2; exit 2 ;;
+          esac

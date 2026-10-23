@@ -1,0 +1,1 @@
+Explain the user-visible problem and final behaviour. Include a synthetic reproduction and the checks actually run. Keep raw screenshots private unless intentionally synthetic. Preserve baseline/Pip edition behaviour, privacy and licence notices. List unverified native cases and material limitations.
