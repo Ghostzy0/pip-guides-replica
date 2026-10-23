@@ -10,7 +10,7 @@ A native SwiftUI/AppKit application for macOS14+. It has no third-party package 
 
 ## Which edition is included?
 
-This repository contains only the Neutral Core Replica (`baseline`). No Pip or enhanced editions are included. See the [edition map](EDITIONS.md).
+Only the Neutral Core Replica (`baseline`) is enabled in this repository's `distribution.json`; other presentation code in the shared source tree is not enabled in this product. See the [edition map](EDITIONS.md).
 
 ## Where are guides and pictures stored?
 
