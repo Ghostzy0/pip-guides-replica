@@ -29,6 +29,12 @@ Packages are ad-hoc signed locally, **not notarised**. Build from source on your
 
 The practice window is a genuine local native test surface with synthetic content; it does not validate external-window capture or its permissions. No typed keys are monitored. Automatic descriptions are basic action labels that you edit yourself.
 
+## Verified sample capture
+
+![Synthetic practice screenshot](assets/practice-capture.png)
+
+This is a saved picture from the built-in Sample practice window, captured after a coordinate click. It documents the synthetic practice surface; it is not the app's editor UI and does not establish external-window capture acceptance.
+
 ## Exports and local storage
 
 - **HTML:** one file with embedded PNGs, no scripts or external resources. Open in a browser.

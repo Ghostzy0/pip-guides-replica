@@ -19,7 +19,7 @@ Tests cover portable v1/v2 guides, future-format/kind refusal without backup rol
 
 Earlier local native artifacts created actual screenshots from the built-in synthetic practice window. Pause prevented a step, Resume added one, and Stop/edit/reorder/save persisted the guide. A Pip artifact reopened it, permanently redacted an image and exported HTML through the native save dialog; the export contained3 embedded PNGs and no external image URLs. Those artifacts predate this source and their complete source identity is unavailable; they do not certify the rebuilt packages.
 
-The current replica's synthetic typed insertion/save/reopen/copy was observed through native UI/accessibility. No screenshot was saved in that slice, so visual acceptance remains pending. That check exposed a custom-edition menu that created only Steps; the code was corrected before the clean-clone tests above. Its current native retest remains pending.
+The current replica's synthetic typed insertion/save/reopen/copy was observed through native UI/accessibility. A later current Pip native check verified that the custom menu creates all four guide kinds and that entries persist after save/reopen. A coordinate click in the built-in Sample practice window produced the saved [synthetic practice screenshot](assets/practice-capture.png); it is a picture of the sample window, not editor UI or external-capture acceptance. The current binary's external Screen Recording preflight was blocked, so external capture has no current acceptance, no owner grant, and no verified third-party-window click. These later native checks do not change the tested source commits or package claims above.
 
 ## Open acceptance gaps
 
