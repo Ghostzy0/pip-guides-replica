@@ -8,4 +8,4 @@ This repository publishes the Neutral Core Replica product only. Its default and
 ./scripts/build-app.sh
 ```
 
-`distribution.json` is the machine-readable source of the default edition and allowed variant list. `SOURCE-PROVENANCE.json` records the product identity, source-input manifest hashes and public-file manifest hash. It contains no private repository origin or revision.
+`distribution.json` is the machine-readable source of the default edition and allowed variant list. `SOURCE-INPUTS.json` records hashes of original pre-export inputs; expected public-export transformations may make those hashes differ from the final output bytes. `SOURCE-MANIFEST.json` records hashes of the final public files. `SOURCE-PROVENANCE.json` records the product identity and both manifest digests. It contains no private repository origin or revision.
