@@ -38,7 +38,7 @@ final class AppModel: ObservableObject {
         store = try? GuideStore(root: root)
         if store == nil { failure = "Your guide folder could not be opened. You can still edit and export a copy." }
         reloadLibrary()
-        capture.onStep = { [weak self] data, point, title in self?.addCaptured(data, point: point, title: title) }
+        capture.onStep = { [weak self] data, point, title in self?.addCaptured(data, point: point, title: title) ?? .unavailable }
         if args.contains("--sample") { createSample() }
     }
     func reloadLibrary() {
@@ -97,13 +97,14 @@ final class AppModel: ObservableObject {
         guard let proposed = try? document.inserting(copy, at: index + 1) else { failure = "This guide is full. Export it and start another guide."; return }
         checkpoint(); document = proposed; selectedStep = copy.id; region = nil; changed()
     }
-    func addCaptured(_ data: Data, point: GuidesCore.UnitPoint?, title: String) {
-        guard hasDocument, document.steps.count < 200 else { capture.stop(); failure = "Capture stopped because this guide is full. Start a new guide."; return }
+    func addCaptured(_ data: Data, point: GuidesCore.UnitPoint?, title: String) -> CaptureAppendResult {
+        guard hasDocument else { return .unavailable }
+        guard document.steps.count < 200 else { capture.stop(); failure = "Capture stopped because this guide is full. Start a new guide."; return .full }
         let step = GuideStep(title: title, image: data, click: point)
         var proposed = document; proposed.steps.append(step)
-        guard (try? proposed.validate()) != nil else { capture.stop(); failure = "Capture stopped because this guide has reached its size limit. Export it and start another guide."; return }
+        guard (try? proposed.validate()) != nil else { capture.stop(); failure = "Capture stopped because this guide has reached its size limit. Export it and start another guide."; return .tooLarge }
         document = proposed; selectedStep = step.id; region = nil; changed()
-        capture.message = flush() ? "Picture added. Saved on this Mac." : "Picture added. Your changes need saving."
+        return flush() ? .saved : .needsSaving
     }
     private func contentEdit() { undoHistory = []; canUndo = false }
     func setGuideTitle(_ title: String) {

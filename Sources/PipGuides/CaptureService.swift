@@ -3,6 +3,8 @@ import ScreenCaptureKit
 import ApplicationServices
 import GuidesCore
 
+enum CaptureAppendResult { case saved, needsSaving, full, tooLarge, unavailable }
+
 @MainActor
 final class CaptureService: ObservableObject {
     @Published var state: RecordingState = .idle
@@ -21,13 +23,28 @@ final class CaptureService: ObservableObject {
     private var practiceLabel: NSTextField?
     private var sampleCount = 0
     private var sampleObserver: NSObjectProtocol?
-    var onStep: ((Data, GuidesCore.UnitPoint?, String) -> Void)?
+    var onStep: ((Data, GuidesCore.UnitPoint?, String) -> CaptureAppendResult)?
     var isActive: Bool { state != .idle }
+
+    func checkAccess() {
+        guard !isActive else { return }
+        // Read only: neither API requests access or enumerates another window.
+        switch (CGPreflightScreenCaptureAccess(), AXIsProcessTrusted()) {
+        case (true, true):
+            message = "Screen recording and Accessibility are available to this build. Refresh windows to check for open windows."
+        case (true, false):
+            message = "Screen recording is available. Accessibility is not currently available to this build. The Sample practice window still works."
+        case (false, true):
+            message = "Accessibility is available. Screen recording is not currently available to this build. The Sample practice window still works."
+        case (false, false):
+            message = "Screen recording and Accessibility are not currently available to this build. The Sample practice window still works."
+        }
+    }
 
     func loadWindows() async {
         guard !isActive else { return }
         guard CGPreflightScreenCaptureAccess() else {
-            message = "Screen recording is not allowed yet. Use the practice window or allow access in System Settings."
+            message = "macOS reports this build is not authorized for screen recording. Practice mode remains available."
             return
         }
         busy = true; defer { busy = false }
@@ -41,13 +58,17 @@ final class CaptureService: ObservableObject {
     }
     func requestScreenAccess() {
         // A user-triggered system request, never an automated consent grant.
-        _ = CGRequestScreenCaptureAccess()
-        message = "After allowing screen recording in System Settings, return here and refresh the windows."
+        let available = CGRequestScreenCaptureAccess()
+        message = available
+            ? "Screen recording access is available. Refresh windows to choose a window."
+            : "Screen recording is not currently available to this build. Refresh windows to check again, or use the Sample practice window."
     }
     func requestAccessibility() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-        message = "After allowing Accessibility in System Settings, return here and start again."
+        let available = AXIsProcessTrustedWithOptions(options)
+        message = available
+            ? "Accessibility access is available."
+            : "Accessibility is not currently available to this build. The Sample practice window remains available."
     }
     func start() {
         guard state == .idle else { return }
@@ -55,8 +76,9 @@ final class CaptureService: ObservableObject {
             openPractice()
             target = nil
         } else {
-            guard CGPreflightScreenCaptureAccess(), AXIsProcessTrusted() else { message = "Allow screen recording and Accessibility, or use the practice window."; return }
-            guard let window = windows.first(where: { $0.windowID == chosenID }) else { message = "Choose a window first."; return }
+            guard CGPreflightScreenCaptureAccess() else { message = "macOS reports this build is not authorized for screen recording."; return }
+            guard AXIsProcessTrusted() else { message = "macOS reports this build is not authorized for Accessibility."; return }
+            guard let window = windows.first(where: { $0.windowID == chosenID }) else { message = "Choose an available window first."; return }
             target = window
         }
         gate.start(); state = gate.state
@@ -150,52 +172,83 @@ final class CaptureService: ObservableObject {
                 _ = self.finishCaptureTicket(ticket); self.message = "Picture skipped because the Sample picture could not be created."; return
             }
             guard self.finishCaptureTicket(ticket) else { return }
-            self.onStep?(data, point, "Click in Sample workspace")
+            self.reportAppend(self.onStep?(data, point, "Click in Sample workspace"))
         }
     }
     private func receivedExternalClick(_ event: NSEvent) {
-        guard !sample, let old = target, state == .recording,
-              let pid = old.owningApplication?.processID,
-              NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
-              let point = event.cgEvent?.location else { return }
+        guard !sample, let old = target, state == .recording else { return }
+        guard let pid = old.owningApplication?.processID else { message = "Click skipped because the selected window is unavailable. Refresh the window list."; return }
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { message = "Click skipped. Only the selected window is captured."; return }
+        guard let point = event.cgEvent?.location else { message = "Click skipped because its location could not be checked safely."; return }
         // Select the first normal window underneath the click, preventing overlap leakage.
         guard let hit = topWindowInfo(at: point) else { message = "Click skipped because the window under it could not be identified."; return }
         guard hit.id == old.windowID else { message = "Click skipped. Only the selected window is recorded."; return }
         let app = AXUIElementCreateApplication(pid)
         guard let masks = secureRects(app: app, point: point, expectedFrame: hit.frame) else {
-            message = "Click skipped because this window could not be checked safely. Pause before private information."; return
+            message = "Click skipped because Accessibility could not confirm this window is safe. Pause before private information."; return
         }
         guard let ticket = beginCaptureTicket(at: ProcessInfo.processInfo.systemUptime) else { return }
         Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            guard self.gate.generation == ticket else { return }
+
+            let content: SCShareableContent
+            do { content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true) }
+            catch { self.fail(ticket, message: "Capture paused because the selected window could not be refreshed. Check it, then resume."); return }
+            guard let window = content.windows.first(where: { $0.windowID == old.windowID }), window.isOnScreen,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
+                  self.topWindowInfo(at: point)?.id == old.windowID else {
+                self.fail(ticket, message: "Capture paused because the selected window changed or closed. Check it, then resume."); return
+            }
+            // Repeat privacy checks after the click has changed focus/content.
+            guard let afterMasks = self.secureRects(app: app, point: point, expectedFrame: window.frame) else {
+                self.fail(ticket, message: "Capture paused because Accessibility could not confirm the updated window is safe."); return
+            }
+            let config = SCStreamConfiguration(); config.width = Int(window.frame.width * 2); config.height = Int(window.frame.height * 2)
+            config.showsCursor = false; config.ignoreShadowsSingleWindow = true
+            let cg: CGImage
+            do { cg = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: window), configuration: config) }
+            catch { self.fail(ticket, message: "Capture paused because macOS could not capture the selected window. Check it, then resume."); return }
+            guard self.gate.generation == ticket else { return }
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
+                self.fail(ticket, message: "Capture paused because another window became active. Check the selected window, then resume."); return
+            }
+            guard let finalMasks = self.secureRects(app: app, point: point, expectedFrame: window.frame) else {
+                self.fail(ticket, message: "Capture paused because the final Accessibility privacy check failed. Check it, then resume."); return
+            }
+            var data: Data
             do {
-                try await Task.sleep(nanoseconds: 100_000_000)
-                guard self.gate.generation == ticket else { return }
-                let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
-                guard let window = content.windows.first(where: { $0.windowID == old.windowID }), window.isOnScreen,
-                      NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
-                      self.topWindowInfo(at: point)?.id == old.windowID else { throw GuideError.missingWindow }
-                // Repeat privacy checks after the click has changed focus/content.
-                guard let afterMasks = self.secureRects(app: app, point: point, expectedFrame: window.frame) else { throw GuideError.permission }
-                let config = SCStreamConfiguration(); config.width = Int(window.frame.width * 2); config.height = Int(window.frame.height * 2)
-                config.showsCursor = false; config.ignoreShadowsSingleWindow = true
-                let cg = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: window), configuration: config)
-                guard self.gate.generation == ticket, NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
-                      let finalMasks = self.secureRects(app: app, point: point, expectedFrame: window.frame) else { throw GuideError.permission }
-                var data = try ImageTools.png(cg)
+                data = try ImageTools.png(cg)
                 for rect in masks + afterMasks + finalMasks {
                     let hit = rect.intersection(window.frame)
                     guard !hit.isNull, hit.width > 0, hit.height > 0 else { continue }
                     let unit = CGRect(x: (hit.minX-window.frame.minX)/window.frame.width, y: (hit.minY-window.frame.minY)/window.frame.height, width: hit.width/window.frame.width, height: hit.height/window.frame.height)
                     data = try ImageTools.edit(data, unit: unit, kind: .redact)
                 }
-                guard self.finishCaptureTicket(ticket) else { return }
-                let click = GuidesCore.UnitPoint(x: (point.x-window.frame.minX)/window.frame.width, y: (point.y-window.frame.minY)/window.frame.height)
-                self.onStep?(data, click.valid ? click : nil, "Click in \(window.owningApplication?.applicationName ?? "chosen window")")
             } catch {
-                guard self.finishCaptureTicket(ticket) else { return }
-                self.pause(); self.message = "Capture paused because the window could not be safely read. Check it, then resume."
+                self.fail(ticket, message: "Capture paused because the picture could not be safely prepared. Check it, then resume."); return
             }
+            guard self.finishCaptureTicket(ticket) else { return }
+            let click = GuidesCore.UnitPoint(x: (point.x-window.frame.minX)/window.frame.width, y: (point.y-window.frame.minY)/window.frame.height)
+            self.reportAppend(self.onStep?(data, click.valid ? click : nil, "Click in \(window.owningApplication?.applicationName ?? "chosen window")"))
         }
+    }
+    private func reportAppend(_ result: CaptureAppendResult?) {
+        guard let result else {
+            message = "Picture prepared but not added. Open or create a guide, then try again."; return
+        }
+        switch result {
+            case .saved: self.message = "Picture added. Saved on this Mac."
+            case .needsSaving: self.message = "Picture added, but changes need saving. Export a copy before closing."
+            case .full: self.message = "Picture not added because this guide is full. Start another guide and try again."
+            case .tooLarge: self.message = "Picture not added because it exceeds this guide's size limit. Export a copy or shorten the guide."
+            case .unavailable: self.message = "Picture prepared but not added. Open or create a guide, then try again."
+        }
+    }
+    private func fail(_ ticket: UInt, message: String) {
+        guard finishCaptureTicket(ticket) else { return }
+        pause()
+        self.message = message
     }
     private func topWindowInfo(at point: CGPoint) -> (id: CGWindowID, frame: CGRect)? {
         guard let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }

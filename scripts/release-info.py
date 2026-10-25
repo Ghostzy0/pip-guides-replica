@@ -6,7 +6,7 @@ import pathlib
 import subprocess
 import sys
 
-from release_integrity import EDITION, IntegrityError, RESOURCE_RECEIPT, distribution_policy, verify_package
+from release_integrity import EDITION, IntegrityError, RESOURCE_RECEIPT, distribution_policy, signature_metadata, verify_package
 
 
 root = pathlib.Path(__file__).resolve().parents[1]
@@ -20,6 +20,10 @@ try:
             raise IntegrityError(f"Build all enabled editions before generating release information (missing {edition}).")
         subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
         receipt = verify_package(root, app, edition)
+        signing = signature_metadata(app)
+        expected_signature = {"adhoc": "ad-hoc", "apple-development": "Apple Development"}[receipt["signing_mode"]]
+        if signing["type"] != expected_signature:
+            raise IntegrityError(f"Package signature does not match its build receipt: {edition}")
         receipt_path = app / "Contents" / "Resources" / RESOURCE_RECEIPT
         entries.append({
             "edition": edition,
@@ -35,7 +39,7 @@ try:
             "source_manifest_sha256": receipt["source_manifest_sha256"],
             "build_receipt_sha256": hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
             "executable_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
-            "signature": "local ad-hoc; not notarised",
+            "signature": signing,
             "acceptance": "See PUBLIC-VERIFICATION.md for actual workflows and gaps.",
         })
 except (IntegrityError, OSError, subprocess.CalledProcessError) as error:

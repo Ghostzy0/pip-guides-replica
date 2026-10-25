@@ -6,6 +6,7 @@ import hashlib
 import json
 import pathlib
 import plistlib
+import re
 import subprocess
 from datetime import datetime, timezone
 from typing import Optional, Tuple
@@ -132,7 +133,8 @@ def source_revision(root: pathlib.Path) -> Tuple[str, Optional[bool]]:
         return "unversioned", None
 
 
-def make_receipt(root: pathlib.Path, app: pathlib.Path, edition: str, manifest: dict, manifest_hash: str, compiler_flags: list[str]) -> dict:
+def make_receipt(root: pathlib.Path, app: pathlib.Path, edition: str, manifest: dict, manifest_hash: str,
+                 compiler_flags: list[str], signing_mode: str) -> dict:
     select_edition(root, edition)
     try:
         name, bundle_id, version, flags = EDITION[edition]
@@ -143,6 +145,8 @@ def make_receipt(root: pathlib.Path, app: pathlib.Path, edition: str, manifest: 
         raise IntegrityError("Staged executable is missing")
     if compiler_flags != flags:
         raise IntegrityError(f"Compiler flags do not match edition: {edition}")
+    if signing_mode not in {"adhoc", "apple-development"}:
+        raise IntegrityError("Unsupported signing mode")
     revision, source_dirty = source_revision(root)
     swift_version = subprocess.run(["swift", "--version"], check=True, capture_output=True, text=True).stdout.strip().splitlines()[0]
     return {
@@ -152,12 +156,50 @@ def make_receipt(root: pathlib.Path, app: pathlib.Path, edition: str, manifest: 
         "bundle_id": bundle_id,
         "version": version,
         "compiler_flags": compiler_flags,
+        "signing_mode": signing_mode,
         "source_revision": revision,
         "source_dirty": source_dirty,
         "source_manifest_sha256": manifest_hash,
         "swift_version": swift_version,
         "built_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
+
+
+def parse_signature_metadata(details: str, requirements: str) -> dict:
+    team_match = re.search(r"^TeamIdentifier=(\S+)$", details, re.MULTILINE)
+    team_present = bool(team_match and team_match.group(1) != "not set")
+    if re.search(r"^Signature=adhoc$", details, re.MULTILINE):
+        signature_type = "ad-hoc"
+        if team_present:
+            raise IntegrityError("Package signing metadata is inconsistent")
+    elif "Authority=Apple Development:" in details and team_present:
+        signature_type = "Apple Development"
+    else:
+        raise IntegrityError("Package uses an unsupported signing identity")
+    match = re.search(r"^\s*#?\s*designated\s*=>\s*(.+)$", requirements, re.MULTILINE)
+    if not match:
+        raise IntegrityError("Package designated requirement is unavailable")
+    return {
+        "type": signature_type,
+        "team_identifier_present": team_present,
+        "notarized": False,
+        "designated_requirement_sha256": _sha256(match.group(1).strip().encode("utf-8")),
+    }
+
+
+def signature_metadata(app: pathlib.Path) -> dict:
+    try:
+        details = subprocess.run(
+            ["codesign", "--display", "--verbose=4", str(app)],
+            check=True, capture_output=True, text=True,
+        )
+        requirements = subprocess.run(
+            ["codesign", "--display", "-r", "-", str(app)],
+            check=True, capture_output=True, text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as error:
+        raise IntegrityError("Could not inspect the package signing identity") from error
+    return parse_signature_metadata(details.stdout + details.stderr, requirements.stdout + requirements.stderr)
 
 
 def verify_package(root: pathlib.Path, app: pathlib.Path, edition: str) -> dict:
@@ -195,6 +237,8 @@ def verify_package(root: pathlib.Path, app: pathlib.Path, edition: str) -> dict:
         raise IntegrityError(f"Package executable is missing: {edition}")
     if any(receipt.get(key) != value for key, value in expected.items()):
         raise IntegrityError(f"Build receipt does not match package/source: {edition}")
+    if receipt.get("signing_mode") not in {"adhoc", "apple-development"}:
+        raise IntegrityError(f"Build receipt has an unsupported signing mode: {edition}")
     if (info.get("CFBundleIdentifier"), info.get("CFBundleShortVersionString"), info.get("CFBundleName")) != (bundle_id, version, name):
         raise IntegrityError(f"Package identity/version does not match edition: {edition}")
     return receipt
@@ -220,6 +264,7 @@ def cli() -> int:
     receipt_parser.add_argument("manifest", type=pathlib.Path)
     receipt_parser.add_argument("manifest_sha256")
     receipt_parser.add_argument("--compiler-flags-json", default="[]")
+    receipt_parser.add_argument("--signing-mode", choices=("adhoc", "apple-development"), default="adhoc")
     verify_parser = subparsers.add_parser("verify")
     verify_parser.add_argument("root", type=pathlib.Path)
     verify_parser.add_argument("app", type=pathlib.Path)
@@ -242,7 +287,8 @@ def cli() -> int:
                 raise IntegrityError("Compiler flags must be a JSON array of strings")
             destination = args.app / "Contents/Resources" / RESOURCE_MANIFEST
             destination.write_bytes(_canonical(manifest))
-            receipt = make_receipt(args.root.resolve(), args.app.resolve(), args.edition, manifest, digest, compiler_flags)
+            receipt = make_receipt(args.root.resolve(), args.app.resolve(), args.edition, manifest, digest,
+                                   compiler_flags, args.signing_mode)
             (args.app / "Contents/Resources" / RESOURCE_RECEIPT).write_bytes(_canonical(receipt))
             print(digest)
         elif args.command == "verify":

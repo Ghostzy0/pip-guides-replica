@@ -30,4 +30,4 @@ No proprietary project import or account integration is implemented. See [moving
 
 ## Is a downloaded build notarised?
 
-Current packages use local ad-hoc signatures. They are experimental and are not Developer ID signed or notarised. Build from source using the [setup instructions](../README.md); do not disable system security globally.
+Public clean builds default to local ad-hoc signatures. An existing Apple Development identity may be selected for repeat local development; this does not make the app Developer ID signed or notarised. Packages remain experimental. Build from source using the [setup instructions](../README.md); do not disable system security globally.
