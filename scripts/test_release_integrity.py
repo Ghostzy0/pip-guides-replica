@@ -87,8 +87,9 @@ class ReleaseIntegrityTests(unittest.TestCase):
         config.write_text("1" * 40 + "\n")
         manifest_paths = [item["path"] for item in source_manifest(self.root)["files"]]
         self.assertNotIn(".local-signing-identity", manifest_paths)
-        app_ignore = self.root / ".gitignore"
-        self.assertIn(".local-signing-identity", app_ignore.read_text().splitlines())
+        app_ignore = pathlib.Path(__file__).resolve().parents[1] / ".gitignore"
+        shutil.copy2(app_ignore, self.root / ".gitignore")
+        self.assertIn(".local-signing-identity", (self.root / ".gitignore").read_text().splitlines())
 
     def test_local_signing_config_fails_closed_when_malformed(self):
         scripts = self.root / "scripts"
