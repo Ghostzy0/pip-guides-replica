@@ -1,30 +1,29 @@
 # Verification and limits
 
-23 October 2026. **Experimental macOS alpha.** Manual authoring and file handling have automated and bounded native evidence. External-window capture remains unaccepted. No complete Scribe/Tango equivalence or stable release is claimed.
+Experimental macOS app. This follow-up updates the public source with an optional existing Apple Development signing selector, bounded capture-stage diagnostics, permission feedback based on the APIs' returned values, and a capture-status wrapping adjustment. It does not claim complete Scribe/Tango parity or a stable binary release.
 
-## Reproducible source and packages
+## Candidate source checks
 
-On Apple Silicon, macOS27.0.1, Xcode27.1/Swift6.4, two fresh local Git exports were cloned into separate clean directories. In each clone, `scripts/check.sh` passed12 Python integrity tests and27 Swift tests in each of default and BASELINE modes. The Replica export built its one enabled edition; the custom export built Neutral Plus, Pip Core and Pip Plus. All four bundles passed strict ad-hoc signature, identity, compile-flag, source-manifest and executable-hash verification. These were local clean clones, not hosted CI or recording acceptance.
+This public candidate is on branch `codex/guides-followup-20261025`. The exact candidate app-input manifest SHA-256 is `28f1595764c4b5ffe3f8c220cbe441023ff66d209501cea1864ff7479a489f5c`. The shared engine input digest is `33791d92b6ac71be4e9eab3dfed7d4cfee14df394163e3a626019a9d997bc8ac` in both the Neutral Core Replica and custom repositories. `SOURCE-INPUTS.json` records the pre-export source-input hashes; `SOURCE-MANIFEST.json` hashes the resulting public files; `SOURCE-PROVENANCE.json` binds those records to this product and the common engine. Candidate hosted CI is the verification gate for these changed sources. Until that exact candidate head's checks pass, do not treat the candidate source as CI-verified.
 
-| Export | Tested source commit | Build-input SHA256 |
-| --- | --- | --- |
-| Replica | `0eec3e826a9efd792386d980216bbc30c86c4678` | `dcfe7af13c7664411382f1ce29d8a98d97c6c05994881d0265bdc3accf0248f0` |
-| Custom | `c480b2026246720559bd079d8e21b170386cc2d1` | `f7e76d1ddb152a045f979788160d0a01dc68d3484e8d967fe3c0700e8f1dc75d` |
+The updated permission feedback, capture-stage diagnostics and status wrapping have only compile-level source evidence so far. They have not been packaged, signed or launched as this candidate. A successful compile does not establish rendered feedback, permission behavior or capture acceptance.
 
-Both exports have common-engine SHA256 `9da282ed855fe3fc1428da79608b41f26029d768fc3c566797214116e08b26a8`. `SOURCE-PROVENANCE.json` and the source/file manifests explain their scope; `distribution.json` selects this repository's enabled editions. A later documentation-only commit does not extend this tested-code claim to changed source inputs. Final downloaded artifacts must be checked against their own release receipt.
+## Bounded native evidence for the earlier frozen build
 
-Tests cover portable v1/v2 guides, future-format/kind refusal without backup rollback, typed insertion, bounded data, image processing, recovery/privacy journaling and escaped self-contained HTML/Markdown/PDF. The source has no external packages or bundled models. Packages are **locally ad-hoc signed, not Developer ID signed or notarised**. Minimum source target is macOS14; Intel, other Macs and older OS versions have not been accepted.
+The only current native runtime evidence applies to frozen executable SHA-256 `e622199ee73d1e060f524aa718acd46adbccfa5de984eb863f9a53686db3dabc`, built from app-input manifest `0a75c8c63dcbf62208b95065fc9744136a5f3c3ad3d80b59745943f4c0bddf6f`. It does not apply to the source candidate above.
 
-## Native workflow evidence
+On that exact build, macOS Screen Recording preflight returned false while System Settings showed Pip Guides enabled for Screen & System Audio Recording and Accessibility. The cause and mapping of those settings rows to the running code identity remain unresolved; external enumeration and recording were not started in that preflight slice. No permission was changed.
 
-Earlier local native artifacts created actual screenshots from the built-in synthetic practice window. Pause prevented a step, Resume added one, and Stop/edit/reorder/save persisted the guide. A Pip artifact reopened it, permanently redacted an image and exported HTML through the native save dialog; the export contained3 embedded PNGs and no external image URLs. Those artifacts predate this source and their complete source identity is unavailable; they do not certify the rebuilt packages.
+A separate bounded walkthrough of the same frozen build and input used only its synthetic Sample practice window. A coordinate click created one picture and saved step; closing Sample stopped capture; guide and step text edits saved; cancelling the Open panel left the guide unchanged; and normal quit/relaunch with the same isolated synthetic data preserved the edits and picture. This accepts those Sample/editor/persistence/cancel/quit cases only. It does not validate external-window capture, permission inheritance, broad keyboard/accessibility/theme/export coverage or reference fidelity. Raw screenshots are not included in this repository.
 
-The current replica's synthetic typed insertion/save/reopen/copy was observed through native UI/accessibility. A later current Pip native check verified that the custom menu creates all four guide kinds and that entries persist after save/reopen. A coordinate click in the built-in Sample practice window produced the saved [synthetic practice screenshot](assets/practice-capture.png); it is a picture of the sample window, not editor UI or external-capture acceptance. The current binary's external Screen Recording preflight was blocked, so external capture has no current acceptance or verified third-party-window click. No new permission grant was requested or changed. These later native checks do not change the tested source commits or package claims above.
+The stable-signing selector has a separate two-build proof on the earlier source input above: two builds used the same existing Apple Development identity and had the same designated-requirement digest, with different executable hashes. This demonstrates the selector's signing continuity in that proof, not permission inheritance; the exact native preflight still returned false despite the enabled settings. The repository contains no certificate, private key, fingerprint value or identity name.
 
-## Open acceptance gaps
+## Build and distribution limits
 
-- A previous external-window test passed both native permission gates and started, but one real target click produced zero saved steps. The cause remains unisolated. Current external-window capture, secure-field protection in third-party apps and multiple displays are unverified. The practice window does not establish external capture acceptance.
-- Editor UI screenshots and visual layout, light/dark themes, keyboard/focus behavior, VoiceOver/accessibility and extended performance need runtime verification. The saved image above documents only the Sample practice window.
-- The neutral replica uses an original vertical document editor informed by an official public tutorial. The current signed-in editor, paid desktop surfaces and exact visual parity were not observed. Browser extensions, automatic prose, GIF/rich text and team services are not implemented.
+The Replica distribution contains only `baseline`. The custom distribution contains Neutral Plus (`baseline-enhanced`), Pip Core (`pip`) and Pip Plus (`pip-enhanced`). Both exports use the same shared Guides engine inputs; the edition configuration and product-specific presentation remain separately identified.
 
-Solid redaction flattens pixels and replaces the current/recovery picture after a successful save. Existing exports, OS snapshots and external backups remain separate copies. Local files are permission-restricted, not encrypted by the app. Review every picture before sharing. Some Markdown viewers block embedded data images; HTML is the self-contained viewing option.
+The workflow uses pinned checkout, read-only repository permissions, a bounded macOS runner and a sequential edition matrix. Hosted checks build the listed variants and verify their package receipts and signatures. Hosted CI does not constitute native UI or permission acceptance.
+
+Packages built locally without a selected identity are ad-hoc signed and not notarised. The minimum source target is macOS 14; Intel, other Macs/OS versions, multiple displays, VoiceOver and extended performance remain unverified. No external packages, models, account, network client or telemetry are required.
+
+Solid redaction replaces pixels in the local document after a successful save. Existing exports, snapshots and external backups remain separate copies. Local files are permission-restricted, not encrypted by the app. Review every picture before sharing.

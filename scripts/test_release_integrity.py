@@ -18,6 +18,7 @@ from release_integrity import (  # noqa: E402
     source_revision,
     source_manifest,
     distribution_policy,
+    parse_signature_metadata,
     select_edition,
     verify_package,
 )
@@ -66,6 +67,7 @@ class ReleaseIntegrityTests(unittest.TestCase):
             "source_revision": "fixture-revision",
             "source_dirty": False,
             "source_manifest_sha256": self.digest,
+            "signing_mode": "adhoc",
             "swift_version": "fixture swift",
             "built_at_utc": "2026-10-23T00:00:00+00:00",
         }))
@@ -79,6 +81,73 @@ class ReleaseIntegrityTests(unittest.TestCase):
         self.assertEqual(first, second)
         paths = [item["path"] for item in first["files"]]
         self.assertEqual(paths, sorted(paths))
+
+    def test_local_signing_config_is_ignored_and_not_a_build_input(self):
+        config = self.root / ".local-signing-identity"
+        config.write_text("1" * 40 + "\n")
+        manifest_paths = [item["path"] for item in source_manifest(self.root)["files"]]
+        self.assertNotIn(".local-signing-identity", manifest_paths)
+        app_ignore = self.root / ".gitignore"
+        self.assertIn(".local-signing-identity", app_ignore.read_text().splitlines())
+
+    def test_local_signing_config_fails_closed_when_malformed(self):
+        scripts = self.root / "scripts"
+        real_scripts = pathlib.Path(__file__).resolve().parent
+        shutil.copy2(real_scripts / "build-app.sh", scripts / "build-app.sh")
+        shutil.copy2(real_scripts / "release_integrity.py", scripts / "release_integrity.py")
+        (self.root / ".local-signing-identity").write_text("not-a-fingerprint\n")
+        result = subprocess.run(["/bin/bash", str(scripts / "build-app.sh"), "pip"],
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("configuration is invalid", result.stderr)
+        self.assertNotIn("not-a-fingerprint", result.stderr + result.stdout)
+        self.assertFalse((self.root / ".build").exists())
+
+    def test_local_signing_config_does_not_fall_back_when_identity_is_unavailable(self):
+        scripts = self.root / "scripts"
+        real_scripts = pathlib.Path(__file__).resolve().parent
+        shutil.copy2(real_scripts / "build-app.sh", scripts / "build-app.sh")
+        shutil.copy2(real_scripts / "release_integrity.py", scripts / "release_integrity.py")
+        missing_identity = "0000000000000000000000000000000000000000"
+        (self.root / ".local-signing-identity").write_text(missing_identity + "\n")
+        fake_bin = self.root / "fake-bin"
+        fake_bin.mkdir()
+        fake_security = fake_bin / "security"
+        fake_security.write_text(
+            '#!/bin/sh\nprintf \'  1) 1111111111111111111111111111111111111111 "Apple Development: Hidden Test Identity (TEAMID)"\\n\'\n'
+        )
+        fake_security.chmod(0o755)
+        env = dict(os.environ, PATH=str(fake_bin) + os.pathsep + os.environ.get("PATH", ""))
+        result = subprocess.run(["/bin/bash", str(scripts / "build-app.sh"), "pip"],
+                                env=env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("available Apple Development identity", result.stderr)
+        self.assertNotIn(missing_identity, result.stderr + result.stdout)
+        self.assertNotIn("Hidden Test Identity", result.stderr + result.stdout)
+        self.assertFalse((self.root / ".build").exists())
+
+    def test_explicit_identity_overrides_malformed_private_config(self):
+        scripts = self.root / "scripts"
+        real_scripts = pathlib.Path(__file__).resolve().parent
+        shutil.copy2(real_scripts / "build-app.sh", scripts / "build-app.sh")
+        shutil.copy2(real_scripts / "release_integrity.py", scripts / "release_integrity.py")
+        (self.root / ".local-signing-identity").write_text("malformed")
+        fake_bin = self.root / "fake-bin"
+        fake_bin.mkdir()
+        fake_security = fake_bin / "security"
+        fake_security.write_text(
+            '#!/bin/sh\nprintf \'  1) 1111111111111111111111111111111111111111 "Apple Development: Hidden Test Identity (TEAMID)"\\n\'\n'
+        )
+        fake_security.chmod(0o755)
+        explicit_identity = "2222222222222222222222222222222222222222"
+        env = dict(os.environ, PATH=str(fake_bin) + os.pathsep + os.environ.get("PATH", ""),
+                   PIP_GUIDES_SIGNING_IDENTITY=explicit_identity)
+        result = subprocess.run(["/bin/bash", str(scripts / "build-app.sh"), "pip"],
+                                env=env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("available Apple Development identity", result.stderr)
+        self.assertNotIn("configuration is invalid", result.stderr)
+        self.assertFalse((self.root / ".build").exists())
 
     def test_missing_distribution_config_keeps_internal_default_and_matrix(self):
         default, editions = distribution_policy(self.root)
@@ -134,9 +203,60 @@ class ReleaseIntegrityTests(unittest.TestCase):
         self.assertIn("not enabled", result.stderr)
         self.assertFalse((self.root / ".build").exists())
 
+    def test_build_app_rejects_unavailable_development_identity_without_leaking_identity_data(self):
+        scripts = self.root / "scripts"
+        real_scripts = pathlib.Path(__file__).resolve().parent
+        shutil.copy2(real_scripts / "build-app.sh", scripts / "build-app.sh")
+        shutil.copy2(real_scripts / "release_integrity.py", scripts / "release_integrity.py")
+        fake_bin = self.root / "fake-bin"
+        fake_bin.mkdir()
+        fake_security = fake_bin / "security"
+        fake_security.write_text(
+            '#!/bin/sh\nprintf \'  1) 1111111111111111111111111111111111111111 "Apple Development: Hidden Test Identity (TEAMID)"\\n\'\n'
+        )
+        fake_security.chmod(0o755)
+        missing_identity = "0000000000000000000000000000000000000000"
+        env = dict(os.environ, PATH=str(fake_bin) + os.pathsep + os.environ.get("PATH", ""))
+        env["PIP_GUIDES_SIGNING_IDENTITY"] = missing_identity
+        result = subprocess.run(["/bin/bash", str(scripts / "build-app.sh"), "pip"],
+                                env=env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("available Apple Development identity", result.stderr)
+        self.assertNotIn(missing_identity, result.stderr + result.stdout)
+        self.assertNotIn("Hidden Test Identity", result.stderr + result.stdout)
+        self.assertFalse((self.root / ".build").exists())
+
+    def test_signature_metadata_is_sanitized_and_binds_designated_requirement(self):
+        details = "Identifier=uk.pipreps.guides\nAuthority=Apple Development: Private Test Name (TEAM123)\nTeamIdentifier=TEAM123\n"
+        requirement = '# designated => identifier "uk.pipreps.guides" and anchor apple generic\n'
+        metadata = parse_signature_metadata(details, requirement)
+        self.assertEqual(metadata["type"], "Apple Development")
+        self.assertTrue(metadata["team_identifier_present"])
+        self.assertFalse(metadata["notarized"])
+        self.assertEqual(len(metadata["designated_requirement_sha256"]), 64)
+        encoded = json.dumps(metadata)
+        self.assertNotIn("Private Test Name", encoded)
+        self.assertNotIn("TEAM123", encoded)
+
+    def test_adhoc_signature_metadata_is_labeled_and_has_no_team(self):
+        details = "Identifier=uk.pipreps.guides\nSignature=adhoc\nTeamIdentifier=not set\n"
+        requirement = '# designated => cdhash H"0123456789abcdef"\n'
+        metadata = parse_signature_metadata(details, requirement)
+        self.assertEqual(metadata["type"], "ad-hoc")
+        self.assertFalse(metadata["team_identifier_present"])
+        self.assertFalse(metadata["notarized"])
+
     def test_current_receipt_and_executable_are_accepted(self):
         result = verify_package(self.root, self.app, "pip")
         self.assertEqual(result["source_manifest_sha256"], self.digest)
+
+    def test_unknown_receipt_signing_mode_is_rejected(self):
+        receipt_path = self.app / "Contents/Resources" / RESOURCE_RECEIPT
+        receipt = json.loads(receipt_path.read_text())
+        receipt["signing_mode"] = "unknown"
+        receipt_path.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(IntegrityError, "unsupported signing mode"):
+            verify_package(self.root, self.app, "pip")
 
     def test_same_bundle_identity_with_stale_source_is_rejected(self):
         (self.root / "Sources/Guide.swift").write_text("changed code, same bundle identity")
@@ -185,6 +305,7 @@ class ReleaseIntegrityTests(unittest.TestCase):
         self.assertTrue(receipt["source_dirty"])
         self.assertNotIn("/private/path", json.dumps(receipt))
         self.assertEqual(receipt["compiler_flags"], [])
+        self.assertEqual(receipt["signing_mode"], "adhoc")
         subprocess.run(
             [sys.executable, str(script), "verify", str(self.root), str(self.app), "pip"],
             env=env, check=True, capture_output=True, text=True,

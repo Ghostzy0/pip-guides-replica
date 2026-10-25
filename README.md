@@ -18,6 +18,15 @@ The `baseline` edition is the only distribution in this repository. Its original
 
 Packages are ad-hoc signed locally, **not notarised**. Build from source on your Mac or inspect the specific macOS security review for a downloaded binary. Do not disable Gatekeeper globally. [AI setup prompt and checks](docs/AI-SETUP.md).
 
+
+## Optional stable local signing
+
+Builds default to local ad-hoc signing and are not notarised. If this Mac already has a valid Apple Development signing identity, the build can select it with `PIP_GUIDES_SIGNING_IDENTITY` set to its 40-character fingerprint, or with an ignored `.local-signing-identity` file in this app directory containing that fingerprint. The environment variable takes precedence. The identity must already be installed and valid; the selector does not create or download certificates or keys. Invalid, unavailable or wrong-type selections fail closed before compilation and do not fall back to ad-hoc signing.
+
+No signing identity, certificate or private key is included in this repository. The local selector file is ignored and excluded from the source-input manifest. Using the same installed identity can retain a stable code-signing requirement across builds, but macOS Screen Recording and Accessibility permission inheritance is not guaranteed. Check the exact running build's permission result; see [public verification](PUBLIC-VERIFICATION.md).
+
+A prior frozen Pip Core build (`e622`, app-input SHA-256 `0a75c8c63dcbf62208b95065fc9744136a5f3c3ad3d80b59745943f4c0bddf6f`) returned false for Screen Recording preflight while System Settings showed Screen Recording and Accessibility enabled. A separate bounded Sample/editor walkthrough on that exact build saved a picture, persisted edits across quit/reopen, and verified Open-panel cancellation; it did not test external capture. This evidence is for Pip Core only and does not establish permission inheritance for this Replica product or any new candidate. See [the bounded verification record](PUBLIC-VERIFICATION.md).
+
 ## Make your first guide
 
 1. Choose **New guide**, then write the guide title and summary.

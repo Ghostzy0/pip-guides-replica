@@ -1,3 +1,9 @@
+## Unreleased source follow-up · 25 October 2026
+
+- Added an opt-in selector for an already-installed Apple Development signing identity; the default remains ad-hoc, invalid selections fail closed, and no signing identity or key is shipped.
+- Improved capture-stage and permission-result feedback, plus wrapped capture status text. These changes are source candidates; native verification for this candidate remains pending.
+- Updated public verification to distinguish the earlier frozen e622 Sample/editor evidence from external capture and from this changed source candidate.
+
 # Changes
 
 ## 0.1.0-alpha.1 · 23 October 2026

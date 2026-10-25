@@ -504,6 +504,9 @@ struct GuideWorkspace: View {
                 }.frame(height: 180)
             }
             Text(capture.message).font(.system(size: 13)).foregroundStyle(palette.secondary)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
             Divider()
             HStack { Text("Review and redact every picture before you share it.").font(.system(size: 13)); Spacer(); Button("Start recording", action: model.startCapture).guideButton(primary: true).keyboardShortcut(.defaultAction).disabled(!capture.sample && capture.chosenID == nil) }
         }.padding(Layout.edge).frame(width: 620)
@@ -526,7 +529,7 @@ struct GuideWorkspace: View {
             Divider()
             Text("Privacy and access").fontWeight(.semibold)
             Text("External capture needs Screen Recording and Accessibility. Password controls identified by macOS are skipped or covered, but custom private fields may not be recognised. Pause before secrets and review every picture. Your guides and recovery copy live in Application Support/\(Edition.name). Use File → Open guide file to import a portable copy.").font(.system(size: 14))
-            Text("Manual editing works without those permissions. Redaction replaces pixels in saved copies; existing exports and external backups are independent. This app is ad-hoc signed, not notarised.").font(.system(size: 14))
+            Text("Manual editing works without those permissions. Redaction replaces pixels in saved copies; existing exports and external backups are independent. This local build is not notarised.").font(.system(size: 14))
             Divider()
             Text("Maintained by Ghostzy0 · MIT licence").fontWeight(.medium)
             HStack { Link("Maintainer", destination: URL(string: "https://github.com/Ghostzy0")!); Link("Workflow references", destination: URL(string: "https://github.com/Sauerbac/Wegweiser")!) }
