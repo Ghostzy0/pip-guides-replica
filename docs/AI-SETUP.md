@@ -14,3 +14,5 @@ Use the built-in sample practice window to check the synthetic workflow. Externa
 ## Optional signing and permission limits
 
 By default builds use an ad-hoc signature. On a Mac that already has a valid Apple Development identity, `PIP_GUIDES_SIGNING_IDENTITY` or the ignored `.local-signing-identity` file may select the existing identity. No certificate or key is supplied here. The selector fails closed for an unavailable or invalid identity. A repeated identity can keep a stable signing requirement, but this does not promise that macOS Screen Recording or Accessibility grants carry over to a new build. Inspect the result for the exact running app; never bypass consent or weaken capture checks.
+
+The source candidate includes a read-only **Check access** control that reports Screen Recording and Accessibility status for the running build. It makes no request, opens no Settings panel and enumerates no windows. Native verification for this new control is pending.

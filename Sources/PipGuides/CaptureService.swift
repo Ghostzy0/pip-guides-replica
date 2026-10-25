@@ -26,6 +26,21 @@ final class CaptureService: ObservableObject {
     var onStep: ((Data, GuidesCore.UnitPoint?, String) -> CaptureAppendResult)?
     var isActive: Bool { state != .idle }
 
+    func checkAccess() {
+        guard !isActive else { return }
+        // Read only: neither API requests access or enumerates another window.
+        switch (CGPreflightScreenCaptureAccess(), AXIsProcessTrusted()) {
+        case (true, true):
+            message = "Screen recording and Accessibility are available to this build. Refresh windows to check for open windows."
+        case (true, false):
+            message = "Screen recording is available. Accessibility is not currently available to this build. The Sample practice window still works."
+        case (false, true):
+            message = "Accessibility is available. Screen recording is not currently available to this build. The Sample practice window still works."
+        case (false, false):
+            message = "Screen recording and Accessibility are not currently available to this build. The Sample practice window still works."
+        }
+    }
+
     func loadWindows() async {
         guard !isActive else { return }
         guard CGPreflightScreenCaptureAccess() else {

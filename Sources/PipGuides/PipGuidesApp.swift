@@ -491,7 +491,12 @@ struct GuideWorkspace: View {
             if capture.sample {
                 Text("A safe native workspace with three buttons. It does not need screen recording access.").foregroundStyle(palette.secondary)
             } else {
-                HStack { Button("Allow screen recording", action: capture.requestScreenAccess); Button("Allow Accessibility", action: capture.requestAccessibility) }
+                HStack {
+                    Button("Check access", action: capture.checkAccess)
+                        .accessibilityHint("Checks this running build without requesting permissions or opening Settings.")
+                    Button("Allow screen recording", action: capture.requestScreenAccess)
+                    Button("Allow Accessibility", action: capture.requestAccessibility)
+                }
                 HStack { Text("Choose one window").fontWeight(.medium); Spacer(); Button("Refresh windows") { Task { await capture.loadWindows() } }.disabled(capture.busy) }
                 ScrollView {
                     VStack(spacing: 6) {

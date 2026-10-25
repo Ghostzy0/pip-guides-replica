@@ -4,9 +4,9 @@ Experimental macOS app. This follow-up updates the public source with an optiona
 
 ## Candidate source checks
 
-This public candidate is on branch `codex/guides-followup-20261025`. The exact candidate app-input manifest SHA-256 is `28f1595764c4b5ffe3f8c220cbe441023ff66d209501cea1864ff7479a489f5c`. The shared engine input digest is `33791d92b6ac71be4e9eab3dfed7d4cfee14df394163e3a626019a9d997bc8ac` in both the Neutral Core Replica and custom repositories. `SOURCE-INPUTS.json` records the pre-export source-input hashes; `SOURCE-MANIFEST.json` hashes the resulting public files; `SOURCE-PROVENANCE.json` binds those records to this product and the common engine. Candidate hosted CI is the verification gate for these changed sources. Until that exact candidate head's checks pass, do not treat the candidate source as CI-verified.
+This public candidate is on branch `codex/guides-followup-20261025`. The exact candidate app-input manifest SHA-256 is `57c09dbc56529f60383ecb85547ab3155b1e059d926c3e906d70301bc9185734`. The shared engine input digest is `c70983c086599ccff3d0e5939073dc37592b2deb5e1f5f7d32e1131874a9ff49` in both the Neutral Core Replica and custom repositories. `SOURCE-INPUTS.json` records the pre-export source-input hashes; `SOURCE-MANIFEST.json` hashes the resulting public files; `SOURCE-PROVENANCE.json` binds those records to this product and the common engine. Candidate hosted CI is the verification gate for these changed sources. Until that exact candidate head's checks pass, do not treat the candidate source as CI-verified.
 
-The updated permission feedback, capture-stage diagnostics and status wrapping have only compile-level source evidence so far. They have not been packaged, signed or launched as this candidate. A successful compile does not establish rendered feedback, permission behavior or capture acceptance.
+The updated permission feedback, capture-stage diagnostics and status wrapping have compile-level source evidence only; they have not been packaged or launched as this candidate. This follow-up also adds a **Check access** control that reports Screen Recording and Accessibility preflight values for the running build. Source review confirms it calls only `CGPreflightScreenCaptureAccess()` and `AXIsProcessTrusted()`; it does not call a request API, open System Settings or enumerate windows. The new control and messages remain pending exact-head CI and native UI verification. The candidate manifests below describe the prepared source; fresh exact-head hosted checks have not yet run. A source review or compile does not establish rendered feedback, permission behavior or capture acceptance.
 
 ## Bounded native evidence for the earlier frozen build
 
@@ -22,7 +22,7 @@ The stable-signing selector has a separate two-build proof on the earlier source
 
 The Replica distribution contains only `baseline`. The custom distribution contains Neutral Plus (`baseline-enhanced`), Pip Core (`pip`) and Pip Plus (`pip-enhanced`). Both exports use the same shared Guides engine inputs; the edition configuration and product-specific presentation remain separately identified.
 
-The workflow uses pinned checkout, read-only repository permissions, a bounded macOS runner and a sequential edition matrix. Hosted checks build the listed variants and verify their package receipts and signatures. Hosted CI does not constitute native UI or permission acceptance.
+The workflow uses pinned checkout, read-only repository permissions, a bounded macOS runner and a sequential edition matrix. Pull requests and manual dispatch check the listed variants; branch-push checks are limited to `main`, avoiding duplicate push and PR matrices for feature branches. Hosted checks build the listed variants and verify their package receipts and signatures. Hosted CI does not constitute native UI or permission acceptance.
 
 Packages built locally without a selected identity are ad-hoc signed and not notarised. The minimum source target is macOS 14; Intel, other Macs/OS versions, multiple displays, VoiceOver and extended performance remain unverified. No external packages, models, account, network client or telemetry are required.
 
